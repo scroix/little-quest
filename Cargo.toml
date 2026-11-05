@@ -13,13 +13,37 @@ path = "src/lib.rs"
 [[bin]]
 name = "little-quest"
 path = "src/main.rs"
+required-features = ["native"]
+
+[[example]]
+name = "snapshot"
+required-features = ["native"]
+
+[[example]]
+name = "check_capture"
+required-features = ["native"]
+
+[features]
+default = ["native"]
+native = ["dep:gpui", "dep:image"]
 
 [dependencies]
-gpui = { version = "0.2.2", features = ["runtime_shaders"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+gpui = { version = "0.2.2", features = ["runtime_shaders"], optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+
+[workspace]
+members = ["web"]
 
 [profile.dev]
 opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 2
+
+[profile.web]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

@@ -1,0 +1,15 @@
+[package]
+name = "little-quest-web"
+version = "0.1.0"
+edition = "2024"
+description = "Little Quest in the browser"
+repository = "https://github.com/scroix/little-quest"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+little-quest = { path = "..", default-features = false }
+wasm-bindgen = "=0.2.130"
