@@ -15,6 +15,43 @@ pub struct Draw {
     pub flash: bool,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Prompts {
+    pub controls: &'static [&'static str],
+    pub start: &'static str,
+    pub restart: &'static str,
+}
+
+impl Prompts {
+    pub const NATIVE: Prompts = Prompts {
+        controls: &[
+            "ARROWS OR WASD: MOVE",
+            "SPACE, Z OR X: SWORD",
+            "CMD-Q: QUIT",
+        ],
+        start: "PRESS ENTER",
+        restart: "PRESS ENTER",
+    };
+    pub const KEYBOARD: Prompts = Prompts {
+        controls: &["ARROWS OR WASD: MOVE", "SPACE, Z OR X: SWORD"],
+        start: "PRESS ENTER",
+        restart: "PRESS ENTER",
+    };
+    pub const TOUCH: Prompts = Prompts {
+        controls: &["D-PAD: MOVE", "BUTTON: SWORD"],
+        start: "TAP SCREEN",
+        restart: "TAP SCREEN",
+    };
+    pub const ALL: [Prompts; 3] = [Self::NATIVE, Self::KEYBOARD, Self::TOUCH];
+
+    pub fn lines(&self) -> impl Iterator<Item = &'static str> {
+        self.controls
+            .iter()
+            .copied()
+            .chain([self.start, self.restart])
+    }
+}
+
 fn draw(sprite: SpriteId, x: i32, y: i32) -> Draw {
     Draw {
         sprite,
@@ -260,7 +297,7 @@ impl Game {
     }
 
     /// Everything in the playfield, in draw order, in logical pixels.
-    pub fn scene(&self) -> Vec<Draw> {
+    pub fn scene(&self, prompts: &Prompts) -> Vec<Draw> {
         let mut out = vec![];
         match self.mode {
             Mode::Title => {
@@ -270,18 +307,18 @@ impl Game {
                 out.push(draw(SpriteId::Flame(f), 88, 52));
                 out.push(draw(SpriteId::HeroDown(f), 120, 52));
                 out.push(draw(SpriteId::Flame(1 - f), 152, 52));
-                centered(&mut out, "ARROWS OR WASD: MOVE", 88);
-                centered(&mut out, "SPACE, Z OR X: SWORD", 100);
-                centered(&mut out, "CMD-Q: QUIT", 112);
+                for (i, line) in prompts.controls.iter().enumerate() {
+                    centered(&mut out, line, 88 + i as i32 * 12);
+                }
                 if (self.tick / 30).is_multiple_of(2) {
-                    centered(&mut out, "PRESS ENTER", 140);
+                    centered(&mut out, prompts.start, 140);
                 }
             }
             Mode::GameOver { .. } => {
                 black_field(&mut out);
                 centered(&mut out, "GAME OVER", 64);
                 out.push(draw(SpriteId::Poof(1), 120, 88));
-                centered(&mut out, "PRESS ENTER", 130);
+                centered(&mut out, prompts.restart, 130);
             }
             Mode::Victory { .. } => {
                 black_field(&mut out);
@@ -291,7 +328,7 @@ impl Game {
                 centered(&mut out, &format!("GEMS: {}", self.gems), 104);
                 let s = self.elapsed_secs();
                 centered(&mut out, &format!("TIME: {}:{:02}", s / 60, s % 60), 116);
-                centered(&mut out, "PRESS ENTER", 146);
+                centered(&mut out, prompts.restart, 146);
             }
             Mode::Scrolling { from, to, dir, t } => {
                 let s =

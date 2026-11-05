@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use little_quest::actors::{EnemyKind, ProjKind};
 use little_quest::autoplay::Bot;
-use little_quest::game::{Game, HeroAction, Input, Mode, PickupKind};
+use little_quest::game::{Game, HeroAction, Input, Mode, PickupKind, Prompts};
 use little_quest::input::{Clock, Key, Keys, MAX_TICKS_PER_FRAME};
 use little_quest::sprites::{self, SpriteId};
 use little_quest::world::{Dir, Edge, Progress, ROOM_H, ROOM_W, RoomId, Tile, tile_at};
@@ -599,13 +599,13 @@ fn key_presses_become_one_tick_edges_and_the_latest_direction_wins() {
 fn every_sprite_is_well_formed_and_every_drawn_glyph_exists() {
     assert_eq!(sprites::malformed(), vec![]);
     let mut g = Game::new(1);
-    let mut scenes = vec![g.scene()];
+    let mut scenes = vec![g.scene(&Prompts::NATIVE)];
     g.tick(Input {
         start: true,
         ..IDLE
     });
     g.teleport(RoomId::Cave, 120.0, 140.0);
-    scenes.push(g.scene());
+    scenes.push(g.scene(&Prompts::NATIVE));
     for scene in scenes {
         for d in scene {
             if let SpriteId::Glyph(_) = d.sprite {
@@ -673,4 +673,36 @@ fn every_documented_control_maps_to_its_action() {
         assert_eq!(key_from_name(name), Some(key), "{name}");
     }
     assert_eq!(key_from_name("q"), None);
+}
+
+#[test]
+fn every_prompt_fits_the_screen_and_uses_only_drawable_glyphs() {
+    for p in Prompts::ALL {
+        for line in p.lines() {
+            assert!(line.len() <= 32, "{line:?} is wider than 32 columns");
+            for ch in line.chars().filter(|c| *c != ' ') {
+                let img = sprites::pixels(SpriteId::Glyph(ch), false, false);
+                assert!(
+                    img.rgba.chunks(4).any(|px| px[3] > 0),
+                    "no glyph for {ch:?} in {line:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn the_title_screen_shows_exactly_the_words_of_its_prompt_table() {
+    let letters = |s: &str| s.chars().filter(|c| *c != ' ').count();
+    for p in Prompts::ALL {
+        let glyphs = Game::new(1)
+            .scene(&p)
+            .iter()
+            .filter(|d| matches!(d.sprite, SpriteId::Glyph(_)))
+            .count();
+        let want = letters("LITTLE QUEST")
+            + p.controls.iter().map(|l| letters(l)).sum::<usize>()
+            + letters(p.start);
+        assert_eq!(glyphs, want, "{p:?}");
+    }
 }

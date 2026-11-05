@@ -9,7 +9,7 @@ use gpui::{
 };
 use image::{Frame, ImageBuffer, Rgba};
 use little_quest::autoplay::Bot;
-use little_quest::game::{Game, HeartState, Hud, Mode};
+use little_quest::game::{Game, HeartState, Hud, Mode, Prompts};
 use little_quest::input::{Clock, Keys, key_from_name};
 use little_quest::sprites::{self, SpriteId};
 use little_quest::world::{PLAY_H, PLAY_W, RoomId};
@@ -361,7 +361,7 @@ impl Render for LittleQuest {
 
         let draws: Vec<_> = self
             .game
-            .scene()
+            .scene(&Prompts::NATIVE)
             .into_iter()
             .map(|d| {
                 let (w, h) = d.sprite.size();

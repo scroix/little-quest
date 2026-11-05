@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use image::{Rgba, RgbaImage};
-use little_quest::game::{Draw, Game, Input, PickupKind};
+use little_quest::game::{Draw, Game, Input, PickupKind, Prompts};
 use little_quest::sprites::{self, SpriteId};
 use little_quest::world::{PLAY_H, PLAY_W, RoomId};
 
@@ -76,7 +76,7 @@ fn overview<const N: usize>(out: &Path, name: &str, grid: &[[RoomId; N]]) {
     let mut img = RgbaImage::from_pixel(w * N as u32, h * grid.len() as u32, Rgba([0, 0, 0, 255]));
     for (r, row) in grid.iter().enumerate() {
         for (c, room) in row.iter().enumerate() {
-            let tile = frame(&Game::new_at(1, *room).scene(), scale);
+            let tile = frame(&Game::new_at(1, *room).scene(&Prompts::NATIVE), scale);
             image::imageops::replace(&mut img, &tile, c as i64 * w as i64, r as i64 * h as i64);
         }
     }
@@ -128,7 +128,7 @@ fn main() {
         if room == RoomId::Cave {
             g.teleport(room, 120.0, 140.0);
         }
-        frame(&g.scene(), 3)
+        frame(&g.scene(&Prompts::NATIVE), 3)
             .save(out.join(format!("room_{}.png", room.def().name)))
             .unwrap();
     }
@@ -150,7 +150,7 @@ fn main() {
         ],
     );
     let mut g = Game::new(1);
-    frame(&g.scene(), 3)
+    frame(&g.scene(&Prompts::NATIVE), 3)
         .save(out.join("screen_title.png"))
         .unwrap();
     g.tick(Input {
@@ -161,7 +161,7 @@ fn main() {
     g.add_pickup(PickupKind::Heart, 60.0, 40.0);
     g.add_pickup(PickupKind::Key, 80.0, 40.0);
     g.add_pickup(PickupKind::Relic, 100.0, 40.0);
-    frame(&g.scene(), 3)
+    frame(&g.scene(&Prompts::NATIVE), 3)
         .save(out.join("room_meadow_items.png"))
         .unwrap();
     println!("wrote {}", out.display());

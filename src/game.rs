@@ -7,7 +7,7 @@ use crate::world::{
     tile_at,
 };
 
-pub use scene::Draw;
+pub use scene::{Draw, Prompts};
 
 pub const TICK_HZ: u32 = 60;
 pub const HERO_SPEED: f32 = 1.5;
