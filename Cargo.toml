@@ -1,0 +1,25 @@
+[package]
+name = "little-quest"
+version = "0.1.0"
+edition = "2024"
+description = "A small top-down adventure game built on GPUI"
+repository = "https://github.com/scroix/little-quest"
+license = "MIT"
+
+[lib]
+name = "little_quest"
+path = "src/lib.rs"
+
+[[bin]]
+name = "little-quest"
+path = "src/main.rs"
+
+[dependencies]
+gpui = { version = "0.2.2", features = ["runtime_shaders"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
