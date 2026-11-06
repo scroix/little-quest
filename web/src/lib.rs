@@ -56,13 +56,23 @@ impl From<WebKey> for Key {
     }
 }
 
+/// What the bot would press on the next tick, for a browser test to press with real fingers.
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct Advice {
+    pub dir: Option<WebKey>,
+    pub sword: bool,
+    pub start: bool,
+}
+
 #[wasm_bindgen]
 pub struct WebGame {
     game: Game,
     keys: Keys,
     pacer: Pacer,
     clock: Clock,
-    bot: Option<Bot>,
+    bot: Bot,
+    demo: bool,
     input: InputKind,
     screen: Screen,
     ticks_run: u32,
@@ -78,7 +88,8 @@ impl WebGame {
             keys: Keys::default(),
             pacer: Pacer::default(),
             clock: Clock::default(),
-            bot: demo.then(Bot::new),
+            bot: Bot::new(),
+            demo,
             input: if touch {
                 InputKind::Touch
             } else {
@@ -93,13 +104,13 @@ impl WebGame {
     }
 
     pub fn press(&mut self, key: WebKey) {
-        if self.bot.is_none() {
+        if !self.demo {
             self.keys.press(key.into());
         }
     }
 
     pub fn release(&mut self, key: WebKey) {
-        if self.bot.is_none() {
+        if !self.demo {
             self.keys.release(key.into());
         }
     }
@@ -143,6 +154,20 @@ impl WebGame {
     }
 
     /// False on the title, game over, and victory screens, where leaving loses nothing.
+    pub fn advice(&mut self) -> Advice {
+        let want = self.bot.decide(&self.game);
+        Advice {
+            dir: want.dir.map(|d| match d {
+                Dir::Up => WebKey::Up,
+                Dir::Down => WebKey::Down,
+                Dir::Left => WebKey::Left,
+                Dir::Right => WebKey::Right,
+            }),
+            sword: want.sword,
+            start: want.start,
+        }
+    }
+
     pub fn in_play(&self) -> bool {
         !matches!(
             self.game.mode(),
@@ -209,8 +234,8 @@ impl WebGame {
 
 impl WebGame {
     fn step(&mut self) {
-        if let Some(bot) = &mut self.bot {
-            let want = bot.decide(&self.game);
+        if self.demo {
+            let want = self.bot.decide(&self.game);
             self.keys.follow(want);
         }
         let mode = self.game.mode().name();
@@ -268,6 +293,32 @@ mod tests {
             2574,
             "stray keys leave the bot's run unchanged"
         );
+    }
+
+    #[test]
+    fn following_the_advice_with_key_presses_wins_on_the_same_tick_as_the_demo() {
+        let mut web = WebGame::new(1, false, false);
+        let mut held = None;
+        while web.mode() != "victory" {
+            let a = web.advice();
+            if a.start {
+                web.press(WebKey::Start);
+            }
+            if a.sword {
+                web.press(WebKey::Sword);
+            }
+            if let Some(old) = held {
+                web.release(old);
+            }
+            if let Some(new) = a.dir {
+                web.press(new);
+            }
+            held = a.dir;
+            web.frame(1000.0 / 60.0);
+            web.release(WebKey::Sword);
+            assert!(web.ticks() < 10_000, "no victory by tick {}", web.ticks());
+        }
+        assert_eq!(web.mode_start_tick(), 2574);
     }
 
     #[test]

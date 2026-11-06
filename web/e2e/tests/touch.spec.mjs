@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { Fingers, center, load, state, waitFor } from './helpers.mjs';
 
-const UP = 0, LEFT = 2, RIGHT = 3, SWORD = 4;
+const UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3, SWORD = 4;
 
 const PHONES = {
   'iPhone portrait': { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 },
@@ -83,8 +83,8 @@ test.describe('touch controls', () => {
   test('on the title screen the sword button and the D-pad start the game too', async ({ browser }) => {
     for (const control of ['#sword', '#left']) {
       const { context, page } = await phone(browser);
-      await load(page);
       const f = await fingers(context, page);
+      await load(page);
       const { x, y } = await center(page, control);
       await f.down(1, x, y);
       await waitFor(page, (s) => s.mode !== 'title');
@@ -95,8 +95,8 @@ test.describe('touch controls', () => {
 
   test('the D-pad and the sword button hold together and release independently', async ({ browser }) => {
     const { context, page } = await phone(browser);
-    await load(page, '?seed=1');
     const f = await fingers(context, page);
+    await load(page, '?seed=1');
     await tapScreen(f, page);
     await waitFor(page, (s) => s.mode === 'playing');
     const right = await center(page, '#right');
@@ -121,8 +121,8 @@ test.describe('touch controls', () => {
 
   test('a thumb can roll between directions without lifting', async ({ browser }) => {
     const { context, page } = await phone(browser);
-    await load(page, '?seed=1');
     const f = await fingers(context, page);
+    await load(page, '?seed=1');
     await tapScreen(f, page);
     await waitFor(page, (s) => s.mode === 'playing');
     const hub = await center(page, '#dpad');
@@ -173,8 +173,8 @@ test.describe('touch controls', () => {
 
   test('a cancelled touch releases everything', async ({ browser }) => {
     const { context, page } = await phone(browser);
-    await load(page, '?seed=1');
     const f = await fingers(context, page);
+    await load(page, '?seed=1');
     await tapScreen(f, page);
     await waitFor(page, (s) => s.mode === 'playing');
     const right = await center(page, '#right');
@@ -244,6 +244,73 @@ test.describe('touch controls', () => {
     expect(view.scale).toBe(1);
     expect(view.width).toBe(390);
     expect(view.prevented).toEqual({ touchstart: true, touchmove: true });
+    await context.close();
+  });
+});
+
+/** Each frame runs only when the test calls it, so a touch always lands before the next tick. */
+const steppedDisplay = `(() => {
+  let queued = null;
+  let now = 0;
+  window.requestAnimationFrame = (cb) => { queued = cb; return 1; };
+  window.cancelAnimationFrame = () => { queued = null; };
+  window.stepFrame = () => {
+    const cb = queued;
+    queued = null;
+    now += 1000 / 60;
+    cb(now);
+  };
+})()`;
+
+test.describe('a whole game by touch', () => {
+  test('real fingers win on the same tick as the bot pressing keys directly', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { context, page } = await phone(browser);
+    const f = await fingers(context, page);
+    await page.addInitScript(steppedDisplay);
+    await page.goto('./?seed=1');
+    await page.waitForFunction(() => window.__lq, null, { polling: 50 });
+    const pad = await center(page, '#dpad');
+    const reach = pad.box.width * 0.35;
+    const aim = { [UP]: [0, -reach], [DOWN]: [0, reach], [LEFT]: [-reach, 0], [RIGHT]: [reach, 0] };
+    const sword = await center(page, '#sword');
+    const screen = await center(page, '#screen');
+    const THUMB = 1, FINGER = 2, TAP = 3;
+    let held = null;
+    let stabsWhileWalking = 0;
+    let s = await state(page);
+    while (s.mode !== 'victory') {
+      const a = await page.evaluate(() => window.__lq.advice());
+      if (a.start) {
+        await f.down(TAP, screen.x, screen.y);
+        await f.up(TAP, screen.x, screen.y);
+      }
+      const dir = a.dir ?? null;
+      if (dir !== held) {
+        const at = dir === null ? null : [pad.x + aim[dir][0], pad.y + aim[dir][1]];
+        if (held === null) await f.down(THUMB, ...at);
+        else if (at === null) await f.up(THUMB, pad.x, pad.y);
+        else await f.move(THUMB, ...at);
+        held = dir;
+        await page.waitForFunction((d) => {
+          const down = window.__lq.state().down;
+          return d === null ? down.length === 0 : down.length === 1 && down[0] === d;
+        }, dir, { polling: 2 });
+      }
+      if (a.sword) {
+        if (held !== null) stabsWhileWalking++;
+        await f.down(FINGER, sword.x, sword.y);
+        await f.up(FINGER, sword.x, sword.y);
+      }
+      s = await page.evaluate(() => {
+        window.stepFrame();
+        return window.__lq.state();
+      });
+      expect(s.ticks, 'the run went past the tick the bot wins on').toBeLessThan(2600);
+    }
+    test.info().annotations.push({ type: 'touch run', description: `won at tick ${s.modeStartTick}, ${s.halfHearts} half hearts left, ${stabsWhileWalking} stabs with the D-pad held` });
+    expect(s.modeStartTick).toBe(2574);
+    expect(stabsWhileWalking, 'both hands were on the controls at once').toBeGreaterThan(0);
     await context.close();
   });
 });

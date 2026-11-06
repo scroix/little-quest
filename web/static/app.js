@@ -234,6 +234,10 @@ async function main() {
   blit();
 
   window.__lq = {
+    advice: () => {
+      const { dir, sword, start } = game.advice();
+      return { dir, sword, start };
+    },
     state: () => ({
       mode: game.mode(),
       room: game.room(),
